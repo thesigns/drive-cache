@@ -6,7 +6,9 @@ const config = require('../config');
  * Get the initial page token (marks "now" as the starting point)
  */
 async function getStartPageToken() {
-  const res = await drive().changes.getStartPageToken();
+  const res = await drive().changes.getStartPageToken({
+    supportsAllDrives: true,
+  });
   return res.data.startPageToken;
 }
 
@@ -26,6 +28,8 @@ async function listChanges(pageToken) {
       pageSize: 100,
       includeRemoved: true,
       spaces: 'drive',
+      supportsAllDrives: true,
+      includeItemsFromAllDrives: true,
     });
 
     allChanges.push(...(res.data.changes || []));
@@ -49,6 +53,8 @@ async function registerWebhook(webhookUrl) {
   const channelId = `drive-cache-${Date.now()}`;
   const res = await drive().changes.watch({
     pageToken: await getStartPageToken(),
+    supportsAllDrives: true,
+    includeItemsFromAllDrives: true,
     requestBody: {
       id: channelId,
       type: 'web_hook',

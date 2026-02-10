@@ -49,6 +49,7 @@ async function resolveFilePath(fileId) {
     const res = await googleClient.drive().files.get({
       fileId: currentId,
       fields: 'name, parents',
+      supportsAllDrives: true,
     });
 
     const { name, parents } = res.data;

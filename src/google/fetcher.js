@@ -9,6 +9,7 @@ async function getFileMeta(fileId) {
   const res = await drive().files.get({
     fileId,
     fields: 'id, name, mimeType, modifiedTime, md5Checksum, size',
+    supportsAllDrives: true,
   });
   return res.data;
 }
@@ -26,6 +27,8 @@ async function listFolderFiles(folderId, prefix = '') {
       fields: 'nextPageToken, files(id, name, mimeType, modifiedTime, md5Checksum, size)',
       pageSize: 100,
       pageToken,
+      supportsAllDrives: true,
+      includeItemsFromAllDrives: true,
     });
 
     for (const file of res.data.files) {
@@ -78,7 +81,7 @@ async function fetchSheetData(fileId) {
  */
 async function fetchBinaryFile(fileId) {
   const res = await drive().files.get(
-    { fileId, alt: 'media' },
+    { fileId, alt: 'media', supportsAllDrives: true },
     { responseType: 'arraybuffer' }
   );
   return Buffer.from(res.data);
