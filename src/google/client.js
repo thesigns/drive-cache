@@ -5,15 +5,11 @@ let driveClient = null;
 let sheetsClient = null;
 
 async function init() {
-  const auth = new google.auth.GoogleAuth({
-    keyFile: config.google.serviceAccountPath,
-    scopes: [
-      'https://www.googleapis.com/auth/drive.readonly',
-      'https://www.googleapis.com/auth/spreadsheets.readonly',
-    ],
-  });
-
-  const authClient = await auth.getClient();
+  const authClient = new google.auth.OAuth2(
+    config.google.clientId,
+    config.google.clientSecret,
+  );
+  authClient.setCredentials({ refresh_token: config.google.refreshToken });
 
   driveClient = google.drive({ version: 'v3', auth: authClient });
   sheetsClient = google.sheets({ version: 'v4', auth: authClient });

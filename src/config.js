@@ -5,7 +5,9 @@ module.exports = {
   apiKey: process.env.API_KEY || 'change-me',
 
   google: {
-    serviceAccountPath: process.env.GOOGLE_SERVICE_ACCOUNT_PATH,
+    clientId: process.env.GOOGLE_CLIENT_ID,
+    clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+    refreshToken: process.env.GOOGLE_REFRESH_TOKEN,
     folderId: process.env.GOOGLE_DRIVE_FOLDER_ID,
   },
 
