@@ -14,8 +14,8 @@ function ensureDir(dir) {
  * Returns { path, hash, size }
  */
 function saveFile(filename, data) {
-  ensureDir(config.cache.dir);
   const filePath = path.join(config.cache.dir, filename);
+  ensureDir(path.dirname(filePath));
   fs.writeFileSync(filePath, data);
 
   const hash = crypto.createHash('md5').update(data).digest('hex');

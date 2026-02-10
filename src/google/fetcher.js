@@ -16,7 +16,7 @@ async function getFileMeta(fileId) {
 /**
  * List all files in the watched folder (recursive)
  */
-async function listFolderFiles(folderId) {
+async function listFolderFiles(folderId, prefix = '') {
   const files = [];
   let pageToken = null;
 
@@ -28,7 +28,16 @@ async function listFolderFiles(folderId) {
       pageToken,
     });
 
-    files.push(...res.data.files);
+    for (const file of res.data.files) {
+      if (file.mimeType === 'application/vnd.google-apps.folder') {
+        const subFiles = await listFolderFiles(file.id, prefix + file.name + '/');
+        files.push(...subFiles);
+      } else {
+        file.name = prefix + file.name;
+        files.push(file);
+      }
+    }
+
     pageToken = res.data.nextPageToken;
   } while (pageToken);
 

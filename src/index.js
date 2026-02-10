@@ -35,6 +35,34 @@ app.get('/health', (_req, res) => {
   });
 });
 
+// --- Helpers ---
+
+/**
+ * Walk up the parent chain to check if a file is inside the watched folder.
+ * Returns the relative path (e.g. "subfolder/file.png") or null if not in tree.
+ */
+async function resolveFilePath(fileId) {
+  const parts = [];
+  let currentId = fileId;
+
+  for (let depth = 0; depth < 20; depth++) {
+    const res = await googleClient.drive().files.get({
+      fileId: currentId,
+      fields: 'name, parents',
+    });
+
+    const { name, parents } = res.data;
+    parts.unshift(currentId === fileId ? name : name + '/');
+
+    if (!parents || parents.length === 0) return null;
+    if (parents.includes(config.google.folderId)) return parts.join('');
+
+    currentId = parents[0];
+  }
+
+  return null;
+}
+
 // --- Sync Logic ---
 
 /**
@@ -90,15 +118,6 @@ async function incrementalSync() {
   let dirty = false;
 
   for (const change of changeList) {
-    // Skip files not in our watched folder
-    if (
-      change.file &&
-      change.file.parents &&
-      !change.file.parents.includes(config.google.folderId)
-    ) {
-      continue;
-    }
-
     if (change.removed) {
       // File was trashed or deleted
       const asset = manifest.get().assets[change.fileId];
@@ -112,23 +131,30 @@ async function incrementalSync() {
     }
 
     if (change.file) {
+      // Skip folders themselves — we only care about files inside them
+      if (change.file.mimeType === 'application/vnd.google-apps.folder') continue;
+
+      // Check if this file is somewhere in our watched folder tree
+      const filePath = await resolveFilePath(change.file.id);
+      if (!filePath) continue;
+
       try {
         const result = await syncFile(
           change.file.id,
-          change.file.name,
+          filePath,
           change.file.mimeType,
           change.file.modifiedTime
         );
         if (result) {
           changedFiles.push({
             id: change.file.id,
-            name: change.file.name,
+            name: filePath,
             action: 'updated',
           });
           dirty = true;
         }
       } catch (err) {
-        console.error(`[sync] Failed to sync ${change.file.name}: ${err.message}`);
+        console.error(`[sync] Failed to sync ${filePath}: ${err.message}`);
       }
     }
   }
