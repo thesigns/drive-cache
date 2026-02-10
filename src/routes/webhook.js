@@ -14,16 +14,14 @@ router.post('/drive', (req, res) => {
   const state = req.headers['x-goog-resource-state'];
   const channelId = req.headers['x-goog-channel-id'];
 
+  console.log(`[webhook] POST /webhook/drive state=${state} channel=${channelId}`);
+
   if (state === 'sync') {
-    // Initial sync message - just acknowledge
-    console.log(`[webhook] Channel sync confirmed: ${channelId}`);
     return res.status(200).end();
   }
 
   if (state === 'change') {
-    console.log(`[webhook] Change notification received`);
     if (onChangeNotification) {
-      // Trigger async sync - don't block the webhook response
       onChangeNotification().catch((err) =>
         console.error('[webhook] Sync error:', err.message)
       );

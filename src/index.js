@@ -204,6 +204,7 @@ let pollTimer = null;
 function startPolling() {
   pollTimer = setInterval(async () => {
     try {
+      console.log('[poll] Checking for changes...');
       await incrementalSync();
     } catch (err) {
       console.error('[poll] Sync error:', err.message);
