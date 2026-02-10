@@ -2,13 +2,39 @@ const { v4: uuidv4 } = require('crypto');
 const { drive } = require('./client');
 const config = require('../config');
 
+let sharedDriveId = null;
+
+/**
+ * Detect if the watched folder is on a Shared Drive.
+ * Must be called once at startup before using the Changes API.
+ */
+async function detectSharedDrive() {
+  try {
+    const res = await drive().files.get({
+      fileId: config.google.folderId,
+      fields: 'driveId',
+      supportsAllDrives: true,
+    });
+    sharedDriveId = res.data.driveId || null;
+    if (sharedDriveId) {
+      console.log(`[changes] Shared Drive detected: ${sharedDriveId}`);
+    } else {
+      console.log('[changes] Folder is on My Drive');
+    }
+  } catch (err) {
+    console.error('[changes] Failed to detect drive type:', err.message);
+  }
+}
+
 /**
  * Get the initial page token (marks "now" as the starting point)
  */
 async function getStartPageToken() {
-  const res = await drive().changes.getStartPageToken({
-    supportsAllDrives: true,
-  });
+  const params = { supportsAllDrives: true };
+  if (sharedDriveId) {
+    params.driveId = sharedDriveId;
+  }
+  const res = await drive().changes.getStartPageToken(params);
   return res.data.startPageToken;
 }
 
@@ -21,7 +47,7 @@ async function listChanges(pageToken) {
   let token = pageToken;
 
   do {
-    const res = await drive().changes.list({
+    const params = {
       pageToken: token,
       fields:
         'nextPageToken, newStartPageToken, changes(fileId, removed, file(id, name, mimeType, modifiedTime, md5Checksum, parents, trashed))',
@@ -30,7 +56,11 @@ async function listChanges(pageToken) {
       spaces: 'drive',
       supportsAllDrives: true,
       includeItemsFromAllDrives: true,
-    });
+    };
+    if (sharedDriveId) {
+      params.driveId = sharedDriveId;
+    }
+    const res = await drive().changes.list(params);
 
     allChanges.push(...(res.data.changes || []));
 
@@ -51,7 +81,7 @@ async function listChanges(pageToken) {
  */
 async function registerWebhook(webhookUrl) {
   const channelId = `drive-cache-${Date.now()}`;
-  const res = await drive().changes.watch({
+  const params = {
     pageToken: await getStartPageToken(),
     supportsAllDrives: true,
     includeItemsFromAllDrives: true,
@@ -61,7 +91,11 @@ async function registerWebhook(webhookUrl) {
       address: webhookUrl,
       expiration: Date.now() + 7 * 24 * 60 * 60 * 1000, // 7 days max
     },
-  });
+  };
+  if (sharedDriveId) {
+    params.driveId = sharedDriveId;
+  }
+  const res = await drive().changes.watch(params);
 
   console.log(
     `[changes] Webhook registered: channel=${channelId}, expires=${new Date(
@@ -87,6 +121,7 @@ async function stopWebhook(channelId, resourceId) {
 }
 
 module.exports = {
+  detectSharedDrive,
   getStartPageToken,
   listChanges,
   registerWebhook,

@@ -260,6 +260,9 @@ async function start() {
     // Init Google API clients
     await googleClient.init();
 
+    // Detect if folder is on a Shared Drive (needed for Changes API)
+    await changes.detectSharedDrive();
+
     // Always full sync on startup
     await fullSync();
 
