@@ -1,0 +1,24 @@
+version: '3.8'
+
+services:
+  drive-cache:
+    build: .
+    container_name: drive-cache
+    restart: unless-stopped
+    ports:
+      - "3100:3100"
+    env_file:
+      - .env
+    volumes:
+      # Persistent cache data (manifest, page token, cached files)
+      - cache-data:/opt/drive-cache/data
+      # Mount your service account credentials
+      - ./credentials:/opt/drive-cache/credentials:ro
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+volumes:
+  cache-data:
