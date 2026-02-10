@@ -1,8 +1,21 @@
 require('dotenv').config();
 
+function parseApiKeys(raw) {
+  const map = new Map();
+  if (!raw) return map;
+  for (const entry of raw.split(',')) {
+    const sep = entry.indexOf(':');
+    if (sep === -1) continue;
+    const subfolder = entry.slice(0, sep).trim();
+    const key = entry.slice(sep + 1).trim();
+    if (subfolder && key) map.set(key, subfolder);
+  }
+  return map;
+}
+
 module.exports = {
   port: parseInt(process.env.PORT || '3100'),
-  apiKey: process.env.API_KEY || 'change-me',
+  apiKeys: parseApiKeys(process.env.API_KEYS),
 
   google: {
     clientId: process.env.GOOGLE_CLIENT_ID,

@@ -33,7 +33,7 @@ cp .env.example .env
 ```
 
 Edit `.env`:
-- `API_KEY` — set a random secret for Unity client auth
+- `API_KEYS` — per-subfolder API keys in `SUBFOLDER:key` format, comma-separated (e.g. `TRTCU:randomkey1,OTHER:randomkey2`). Each key grants access only to files under that subfolder in the Drive folder.
 - `GOOGLE_DRIVE_FOLDER_ID` — your shared folder ID
 - `WEBHOOK_URL` — (optional) public HTTPS URL for push notifications
 
@@ -49,27 +49,27 @@ docker compose up -d
 # Health check
 curl http://localhost:3100/health
 
-# Manifest (with auth)
-curl -H "Authorization: Bearer YOUR_API_KEY" http://localhost:3100/manifest
+# Manifest (with auth) — only shows files under the key's subfolder
+curl -H "Authorization: Bearer YOUR_KEY" http://localhost:3100/manifest
 
-# Download an asset
-curl -H "Authorization: Bearer YOUR_API_KEY" http://localhost:3100/assets/myfile.json
+# Download an asset (path is relative to the key's subfolder)
+curl -H "Authorization: Bearer YOUR_KEY" http://localhost:3100/assets/myfile.json
 ```
 
 ## Endpoints
 
 | Endpoint | Auth | Description |
 |---|---|---|
-| `GET /manifest` | Yes | Full asset manifest with hashes |
+| `GET /manifest` | Yes | Asset manifest (scoped to key's subfolder) |
 | `GET /manifest/version` | Yes | Just the version number |
-| `GET /assets/:filename` | Yes | Download a cached file |
-| `GET /sse/events?key=...` | Yes | SSE stream for update notifications |
+| `GET /assets/*` | Yes | Download a cached file (path relative to subfolder) |
+| `GET /sse/events?key=...` | Yes | SSE stream (filtered to key's subfolder) |
 | `GET /health` | No | Health check |
 | `POST /webhook/drive` | No | Google Drive webhook receiver |
 
 ## SSE Events
 
-Connect to `/sse/events?key=YOUR_API_KEY` to receive:
+Connect to `/sse/events?key=YOUR_KEY` to receive:
 
 - `connected` — sent immediately with current version and asset count
 - `update` — sent when assets change, includes version and list of changed files

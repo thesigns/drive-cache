@@ -11,7 +11,8 @@ router.get('/events', (req, res) => {
     req.headers['authorization']?.replace('Bearer ', '') ||
     req.query.key;
 
-  if (!key || key !== config.apiKey) {
+  const subfolder = config.apiKeys.get(key);
+  if (!key || subfolder === undefined) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
 
@@ -23,12 +24,16 @@ router.get('/events', (req, res) => {
     'Access-Control-Allow-Origin': '*',
   });
 
-  // Send current version as initial event
+  // Send current version as initial event, scoped to this client's subfolder
   const current = manifest.get();
+  const prefix = subfolder + '/';
+  const visibleCount = Object.values(current.assets)
+    .filter(a => a.filename.startsWith(prefix)).length;
+
   res.write(
     `event: connected\ndata: ${JSON.stringify({
       version: current.version,
-      assetCount: Object.keys(current.assets).length,
+      assetCount: visibleCount,
     })}\n\n`
   );
 
@@ -41,7 +46,7 @@ router.get('/events', (req, res) => {
     clearInterval(keepalive);
   });
 
-  broadcaster.addClient(res);
+  broadcaster.addClient(res, subfolder);
 });
 
 module.exports = router;

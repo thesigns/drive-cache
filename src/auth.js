@@ -8,10 +8,12 @@ function authMiddleware(req, res, next) {
     req.headers['authorization']?.replace('Bearer ', '') ||
     req.query.key;
 
-  if (!key || key !== config.apiKey) {
+  const subfolder = config.apiKeys.get(key);
+  if (!key || subfolder === undefined) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
 
+  req.subfolder = subfolder;
   next();
 }
 

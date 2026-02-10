@@ -118,7 +118,7 @@ async function incrementalSync() {
       if (asset) {
         store.deleteFile(asset.filename);
         manifest.removeAsset(change.fileId);
-        changedFiles.push({ id: change.fileId, action: 'removed' });
+        changedFiles.push({ id: change.fileId, name: asset.filename, action: 'removed' });
         dirty = true;
       }
       continue;

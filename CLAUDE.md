@@ -39,24 +39,24 @@ The server runs on Express (port 3100) with Node.js 20. Key flows:
 
 - **index.js** — Entry point. Orchestrates full/incremental sync, polling, webhook setup, and Express server startup. Contains `fullSync()`, `incrementalSync()`, and `syncFile()`.
 - **config.js** — Centralizes all environment variables.
-- **auth.js** — API key middleware (Bearer header or `?key=` query param). Exempts `/webhook/drive`.
+- **auth.js** — Per-key auth middleware (Bearer header or `?key=` query param). Looks up the key in `config.apiKeys`, sets `req.subfolder` to the scoped subfolder. Exempts `/webhook/drive`.
 - **google/client.js** — Initializes authenticated Drive v3 and Sheets v4 clients from service account credentials.
 - **google/fetcher.js** — Downloads files: Sheets become multi-tab JSON, binaries preserved as-is. Routes by MIME type.
 - **google/changes.js** — Incremental sync via Changes API. Webhook registration/renewal (7-day expiry, auto-renews 1hr before).
 - **cache/store.js** — File system ops: save/read/delete cached files, persist/load page token.
 - **cache/manifest.js** — Version-controlled asset registry. Tracks filename, type, hash, size, modifiedTime, URL per asset. `commit()` bumps version only if changes occurred.
-- **sse/broadcaster.js** — Manages SSE client connections and broadcasts `update` events with changed file lists.
-- **routes/** — `manifest.js` (GET manifest + version), `assets.js` (static file serving with ETag), `sse.js` (SSE stream with 30s keepalive), `webhook.js` (Google Drive push notification receiver).
+- **sse/broadcaster.js** — Manages SSE client connections (Map of res→subfolder). Broadcasts `update` events filtered per client's subfolder, stripping the subfolder prefix from filenames.
+- **routes/** — `manifest.js` (GET manifest filtered by subfolder + version), `assets.js` (file serving scoped to subfolder with path traversal protection), `sse.js` (SSE stream with 30s keepalive, subfolder-scoped), `webhook.js` (Google Drive push notification receiver).
 
 ### API Endpoints
 
 | Endpoint | Auth | Description |
 |---|---|---|
 | `GET /health` | No | Health check (status, version, clients, uptime) |
-| `GET /manifest` | Yes | Full asset manifest |
+| `GET /manifest` | Yes | Asset manifest (scoped to key's subfolder) |
 | `GET /manifest/version` | Yes | Version number only |
-| `GET /assets/:filename` | Yes | Cached file download |
-| `GET /sse/events` | Yes | SSE stream for update notifications |
+| `GET /assets/*` | Yes | Cached file download (path relative to subfolder) |
+| `GET /sse/events` | Yes | SSE stream filtered to key's subfolder |
 | `POST /webhook/drive` | No | Google Drive webhook receiver |
 
 ### Docker Setup
