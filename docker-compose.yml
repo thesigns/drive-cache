@@ -6,7 +6,7 @@ services:
     env_file:
       - .env
     volumes:
-      - cache-data:/opt/drive-cache/data
+      - ./data:/opt/drive-cache/data
     networks:
       - caddy_default
     logging:
@@ -15,8 +15,6 @@ services:
         max-size: "10m"
         max-file: "3"
 
-volumes:
-  cache-data:
 
 networks:
   caddy_default:
