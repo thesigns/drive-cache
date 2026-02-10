@@ -41,4 +41,21 @@ function deleteFile(filename) {
   }
 }
 
-module.exports = { saveFile, readFile, deleteFile, ensureDir };
+/**
+ * List all files in the cache directory (recursive, relative paths).
+ */
+function listFiles(dir = config.cache.dir, prefix = '') {
+  const results = [];
+  if (!fs.existsSync(dir)) return results;
+  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+    const rel = prefix ? prefix + '/' + entry.name : entry.name;
+    if (entry.isDirectory()) {
+      results.push(...listFiles(path.join(dir, entry.name), rel));
+    } else {
+      results.push(rel);
+    }
+  }
+  return results;
+}
+
+module.exports = { saveFile, readFile, deleteFile, ensureDir, listFiles };

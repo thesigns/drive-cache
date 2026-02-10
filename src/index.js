@@ -87,13 +87,14 @@ async function fullSync() {
     }
   }
 
-  // Remove cached files that no longer exist in Drive
-  for (const [fileId, asset] of Object.entries(manifest.get().assets)) {
-    if (!seenIds.has(fileId)) {
-      store.deleteFile(asset.filename);
-      manifest.removeAsset(fileId);
-      dirty = true;
-      console.log(`[sync] Pruned stale file: ${asset.filename}`);
+  // Remove cached files on disk that are no longer in Drive
+  const knownFiles = new Set(
+    Object.values(manifest.get().assets).map(a => a.filename)
+  );
+  for (const file of store.listFiles()) {
+    if (!knownFiles.has(file)) {
+      store.deleteFile(file);
+      console.log(`[sync] Pruned stale file: ${file}`);
     }
   }
 
