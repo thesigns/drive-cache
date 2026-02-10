@@ -74,24 +74,36 @@ let currentPageToken = null;
 async function fullSync() {
   console.log('[sync] Starting full sync...');
   const files = await fetcher.listFolderFiles(config.google.folderId);
-  let count = 0;
+  const seenIds = new Set();
+  let dirty = false;
 
   for (const file of files) {
+    seenIds.add(file.id);
     try {
       const result = await syncFile(file.id, file.name, file.mimeType, file.modifiedTime);
-      if (result) count++;
+      if (result) dirty = true;
     } catch (err) {
       console.error(`[sync] Failed to sync ${file.name}: ${err.message}`);
     }
   }
 
-  if (count > 0) {
+  // Remove cached files that no longer exist in Drive
+  for (const [fileId, asset] of Object.entries(manifest.get().assets)) {
+    if (!seenIds.has(fileId)) {
+      store.deleteFile(asset.filename);
+      manifest.removeAsset(fileId);
+      dirty = true;
+      console.log(`[sync] Pruned stale file: ${asset.filename}`);
+    }
+  }
+
+  if (dirty) {
     const version = manifest.commit();
     broadcaster.notifyUpdate(version, []);
   }
 
   currentPageToken = await changes.getStartPageToken();
-  console.log(`[sync] Full sync complete: ${count} files cached`);
+  console.log(`[sync] Full sync complete: ${seenIds.size} files cached`);
 }
 
 /**
