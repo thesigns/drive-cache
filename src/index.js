@@ -116,6 +116,7 @@ async function incrementalSync() {
   const { changes: changeList, newPageToken } = await changes.listChanges(currentPageToken);
 
   if (changeList.length === 0) {
+    console.log('[sync] No changes found');
     currentPageToken = newPageToken;
     return;
   }
@@ -126,6 +127,8 @@ async function incrementalSync() {
   let dirty = false;
 
   for (const change of changeList) {
+    console.log(`[sync] Change: fileId=${change.fileId} removed=${change.removed} trashed=${change.file?.trashed} name=${change.file?.name || '(none)'}`);
+
     if (change.removed || (change.file && change.file.trashed)) {
       const asset = manifest.get().assets[change.fileId];
       if (asset) {
