@@ -66,9 +66,10 @@ async function resolveFilePath(fileId) {
 
 // --- Sync Logic ---
 
+let currentPageToken = null;
+
 /**
  * Full sync: fetch all files from the watched folder and rebuild cache.
- * Used on first startup when no page token exists.
  */
 async function fullSync() {
   console.log('[sync] Starting full sync...');
@@ -89,10 +90,7 @@ async function fullSync() {
     broadcaster.notifyUpdate(version, []);
   }
 
-  // Store the page token for incremental syncs going forward
-  const pageToken = await changes.getStartPageToken();
-  store.savePageToken(pageToken);
-
+  currentPageToken = await changes.getStartPageToken();
   console.log(`[sync] Full sync complete: ${count} files cached`);
 }
 
@@ -100,16 +98,12 @@ async function fullSync() {
  * Incremental sync: fetch only changes since last check.
  */
 async function incrementalSync() {
-  const pageToken = store.loadPageToken();
-  if (!pageToken) {
-    console.warn('[sync] No page token found, falling back to full sync');
-    return fullSync();
-  }
+  if (!currentPageToken) return;
 
-  const { changes: changeList, newPageToken } = await changes.listChanges(pageToken);
+  const { changes: changeList, newPageToken } = await changes.listChanges(currentPageToken);
 
   if (changeList.length === 0) {
-    store.savePageToken(newPageToken);
+    currentPageToken = newPageToken;
     return;
   }
 
@@ -120,7 +114,6 @@ async function incrementalSync() {
 
   for (const change of changeList) {
     if (change.removed) {
-      // File was trashed or deleted
       const asset = manifest.get().assets[change.fileId];
       if (asset) {
         store.deleteFile(asset.filename);
@@ -132,10 +125,8 @@ async function incrementalSync() {
     }
 
     if (change.file) {
-      // Skip folders themselves — we only care about files inside them
       if (change.file.mimeType === 'application/vnd.google-apps.folder') continue;
 
-      // Check if this file is somewhere in our watched folder tree
       const filePath = await resolveFilePath(change.file.id);
       if (!filePath) continue;
 
@@ -160,7 +151,7 @@ async function incrementalSync() {
     }
   }
 
-  store.savePageToken(newPageToken);
+  currentPageToken = newPageToken;
 
   if (dirty) {
     const version = manifest.commit();
@@ -252,18 +243,8 @@ async function start() {
     // Init Google API clients
     await googleClient.init();
 
-    // Load existing manifest
-    manifest.load();
-
-    // Check if we have a page token (i.e., have we synced before?)
-    const existingToken = store.loadPageToken();
-    if (existingToken) {
-      console.log('[startup] Page token found, running incremental sync...');
-      await incrementalSync();
-    } else {
-      console.log('[startup] No page token, running full sync...');
-      await fullSync();
-    }
+    // Always full sync on startup
+    await fullSync();
 
     // Start polling as a safety net
     startPolling();

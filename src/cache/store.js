@@ -41,20 +41,4 @@ function deleteFile(filename) {
   }
 }
 
-/**
- * Persist the changes page token to disk.
- */
-function savePageToken(token) {
-  ensureDir(path.dirname(config.cache.pageTokenPath));
-  fs.writeFileSync(config.cache.pageTokenPath, token, 'utf-8');
-}
-
-/**
- * Load the persisted page token.
- */
-function loadPageToken() {
-  if (!fs.existsSync(config.cache.pageTokenPath)) return null;
-  return fs.readFileSync(config.cache.pageTokenPath, 'utf-8').trim();
-}
-
-module.exports = { saveFile, readFile, deleteFile, savePageToken, loadPageToken, ensureDir };
+module.exports = { saveFile, readFile, deleteFile, ensureDir };
