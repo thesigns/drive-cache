@@ -24,7 +24,7 @@ async function listChanges(pageToken) {
     const res = await drive().changes.list({
       pageToken: token,
       fields:
-        'nextPageToken, newStartPageToken, changes(fileId, removed, file(id, name, mimeType, modifiedTime, md5Checksum, parents))',
+        'nextPageToken, newStartPageToken, changes(fileId, removed, file(id, name, mimeType, modifiedTime, md5Checksum, parents, trashed))',
       pageSize: 100,
       includeRemoved: true,
       spaces: 'drive',

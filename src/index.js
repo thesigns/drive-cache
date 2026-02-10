@@ -125,7 +125,7 @@ async function incrementalSync() {
   let dirty = false;
 
   for (const change of changeList) {
-    if (change.removed) {
+    if (change.removed || (change.file && change.file.trashed)) {
       const asset = manifest.get().assets[change.fileId];
       if (asset) {
         store.deleteFile(asset.filename);
