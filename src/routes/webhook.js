@@ -14,9 +14,8 @@ router.post('/drive', (req, res) => {
   const state = req.headers['x-goog-resource-state'];
   const channelId = req.headers['x-goog-channel-id'];
 
-  console.log(`[webhook] POST /webhook/drive state=${state} channel=${channelId}`);
-
   if (state === 'sync') {
+    console.log(`[webhook] Channel sync confirmed: ${channelId}`);
     return res.status(200).end();
   }
 
