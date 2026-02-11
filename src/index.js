@@ -121,12 +121,26 @@ async function incrementalSync() {
     return;
   }
 
-  console.log(`[sync] Processing ${changeList.length} changes...`);
+  // Filter to file changes only (Shared Drives also emit drive-level changes)
+  const fileChanges = changeList.filter(c => {
+    if (c.changeType && c.changeType !== 'file') {
+      console.log(`[sync] Skipping ${c.changeType} change (driveId=${c.driveId})`);
+      return false;
+    }
+    return true;
+  });
+
+  console.log(`[sync] Processing ${fileChanges.length} file changes (${changeList.length} total)...`);
+
+  if (fileChanges.length === 0) {
+    currentPageToken = newPageToken;
+    return;
+  }
 
   const changedFiles = [];
   let dirty = false;
 
-  for (const change of changeList) {
+  for (const change of fileChanges) {
     if (change.removed || (change.file && change.file.trashed)) {
       const asset = manifest.get().assets[change.fileId];
       if (asset) {
@@ -220,6 +234,7 @@ async function syncFile(fileId, fileName, mimeType, modifiedTime) {
  * Only downloads files that are actually new or modified.
  */
 async function driftCheck() {
+  console.log('[drift] Running folder comparison...');
   const files = await fetcher.listFolderFiles(config.google.folderId);
   const assets = manifest.get().assets;
   const changedFiles = [];

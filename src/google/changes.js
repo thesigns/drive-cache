@@ -50,7 +50,7 @@ async function listChanges(pageToken) {
     const params = {
       pageToken: token,
       fields:
-        'nextPageToken, newStartPageToken, changes(fileId, removed, file(id, name, mimeType, modifiedTime, md5Checksum, parents, trashed))',
+        'nextPageToken, newStartPageToken, changes(changeType, fileId, removed, file(id, name, mimeType, modifiedTime, md5Checksum, parents, trashed), driveId)',
       pageSize: 100,
       includeRemoved: true,
       spaces: 'drive',
