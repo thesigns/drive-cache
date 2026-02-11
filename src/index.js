@@ -134,6 +134,11 @@ async function incrementalSync() {
 
   if (fileChanges.length === 0) {
     currentPageToken = newPageToken;
+    // Drive-level changes often mean files moved/restored — check immediately
+    if (changeList.length > 0) {
+      console.log('[sync] Non-file changes detected, triggering drift check...');
+      await driftCheck();
+    }
     return;
   }
 
