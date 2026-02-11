@@ -289,26 +289,6 @@ async function driftCheck() {
 // --- Polling ---
 
 let pollTimer = null;
-let pollCount = 0;
-const DRIFT_CHECK_INTERVAL = 4; // Run drift check every Nth poll cycle
-
-function startPolling() {
-  pollTimer = setInterval(async () => {
-    try {
-      pollCount++;
-      await incrementalSync();
-
-      // Periodic drift check as safety net for Changes API gaps
-      if (pollCount % DRIFT_CHECK_INTERVAL === 0) {
-        await driftCheck();
-      }
-    } catch (err) {
-      console.error('[poll] Sync error:', err.message);
-    }
-  }, config.pollInterval);
-
-  console.log(`[poll] Polling every ${config.pollInterval / 1000}s (drift check every ${DRIFT_CHECK_INTERVAL * config.pollInterval / 1000}s)`);
-}
 
 // --- Webhook ---
 
@@ -359,10 +339,7 @@ async function start() {
     // Always full sync on startup
     await fullSync();
 
-    // Start polling as a safety net
-    startPolling();
-
-    // Set up webhook if configured
+    // Set up webhook for push notifications
     await setupWebhook();
 
     // Start HTTP server
@@ -385,7 +362,6 @@ async function start() {
 // Graceful shutdown
 process.on('SIGTERM', async () => {
   console.log('[shutdown] Received SIGTERM');
-  clearInterval(pollTimer);
   if (webhookChannel) {
     try {
       await changes.stopWebhook(webhookChannel.channelId, webhookChannel.resourceId);
