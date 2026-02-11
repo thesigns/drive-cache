@@ -117,6 +117,7 @@ async function incrementalSync() {
 
   if (changeList.length === 0) {
     currentPageToken = newPageToken;
+    console.log('[sync] No changes found');
     return;
   }
 

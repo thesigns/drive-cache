@@ -20,6 +20,7 @@ router.post('/drive', (req, res) => {
   }
 
   if (state === 'change') {
+    console.log(`[webhook] Change notification received: channel=${channelId}`);
     if (onChangeNotification) {
       onChangeNotification().catch((err) =>
         console.error('[webhook] Sync error:', err.message)
