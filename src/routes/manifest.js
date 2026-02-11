@@ -3,6 +3,13 @@ const manifest = require('../cache/manifest');
 
 const router = express.Router();
 
+// Set by index.js — runs a folder comparison before serving manifest
+let driftCheckFn = null;
+
+function setDriftCheck(fn) {
+  driftCheckFn = fn;
+}
+
 /**
  * Filter manifest assets to those under the given subfolder,
  * stripping the subfolder prefix from filenames and URLs.
@@ -25,7 +32,8 @@ function getVisibleAssets(subfolder) {
 }
 
 // Get current manifest (filtered to key's subfolder)
-router.get('/', (req, res) => {
+router.get('/', async (req, res) => {
+  if (driftCheckFn) await driftCheckFn();
   const full = manifest.get();
   res.json({
     version: full.version,
@@ -35,8 +43,10 @@ router.get('/', (req, res) => {
 });
 
 // Get just the version (lightweight check)
-router.get('/version', (req, res) => {
+router.get('/version', async (req, res) => {
+  if (driftCheckFn) await driftCheckFn();
   res.json({ version: manifest.getVersion() });
 });
 
 module.exports = router;
+module.exports.setDriftCheck = setDriftCheck;

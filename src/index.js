@@ -342,6 +342,9 @@ async function start() {
     // Set up webhook for push notifications
     await setupWebhook();
 
+    // Wire drift check into manifest routes so Unity always gets fresh data
+    manifestRoutes.setDriftCheck(driftCheck);
+
     // Start HTTP server
     app.listen(config.port, () => {
       console.log(`[server] drive-cache running on port ${config.port}`);
