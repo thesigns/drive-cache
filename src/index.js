@@ -133,15 +133,26 @@ async function incrementalSync() {
         manifest.removeAsset(change.fileId);
         changedFiles.push({ id: change.fileId, name: asset.filename, action: 'removed' });
         dirty = true;
+        console.log(`[sync] Removed: ${asset.filename}`);
+      } else {
+        console.log(`[sync] Change removed/trashed for unknown fileId=${change.fileId}, skipping`);
       }
       continue;
     }
 
     if (change.file) {
-      if (change.file.mimeType === 'application/vnd.google-apps.folder') continue;
+      console.log(`[sync] Change: id=${change.file.id} name="${change.file.name}" mime=${change.file.mimeType} parents=${JSON.stringify(change.file.parents)}`);
+
+      if (change.file.mimeType === 'application/vnd.google-apps.folder') {
+        console.log(`[sync] Skipping folder: ${change.file.name}`);
+        continue;
+      }
 
       const filePath = await resolveFilePath(change.file.id);
-      if (!filePath) continue;
+      if (!filePath) {
+        console.log(`[sync] File "${change.file.name}" (${change.file.id}) is not inside watched folder ${config.google.folderId}, skipping`);
+        continue;
+      }
 
       try {
         const result = await syncFile(
@@ -157,10 +168,15 @@ async function incrementalSync() {
             action: 'updated',
           });
           dirty = true;
+          console.log(`[sync] Updated: ${filePath}`);
+        } else {
+          console.log(`[sync] Unchanged (same hash): ${filePath}`);
         }
       } catch (err) {
         console.error(`[sync] Failed to sync ${filePath}: ${err.message}`);
       }
+    } else {
+      console.log(`[sync] Change has no file object: fileId=${change.fileId} removed=${change.removed}`);
     }
   }
 
