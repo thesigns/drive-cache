@@ -10,7 +10,6 @@ namespace Airon.Drive
     {
         private const string SettingsDir = "ProjectSettings/Packages/com.airon.drive";
         private const string SettingsPath = SettingsDir + "/Settings.json";
-        private const string CachePath = SettingsDir + "/cache.json";
 
         public string serverUrl = "";
         public string apiKey = "";
@@ -42,9 +41,8 @@ namespace Airon.Drive
 
         public bool IsValid => !string.IsNullOrEmpty(serverUrl) && !string.IsNullOrEmpty(apiKey);
 
-        // --- Cache ---
+        // --- Cache (in-memory only, rebuilds each editor session) ---
 
-        [Serializable]
         public class CachedAsset
         {
             public string fileId;
@@ -52,29 +50,23 @@ namespace Airon.Drive
             public string filename;
         }
 
-        [Serializable]
         public class SyncCache
         {
             public int lastSyncedVersion;
             public List<CachedAsset> assets = new List<CachedAsset>();
         }
 
+        private static SyncCache s_Cache;
+
         public static SyncCache LoadCache()
         {
-            if (File.Exists(CachePath))
-            {
-                var json = File.ReadAllText(CachePath);
-                var cache = JsonUtility.FromJson<SyncCache>(json);
-                if (cache != null)
-                    return cache;
-            }
-            return new SyncCache();
+            s_Cache ??= new SyncCache();
+            return s_Cache;
         }
 
         public static void SaveCache(SyncCache cache)
         {
-            Directory.CreateDirectory(SettingsDir);
-            File.WriteAllText(CachePath, JsonUtility.ToJson(cache, true));
+            s_Cache = cache;
         }
     }
 }

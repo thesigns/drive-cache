@@ -74,10 +74,42 @@ Connect to `/sse/events?key=YOUR_KEY` to receive:
 - `connected` — sent immediately with current version and asset count
 - `update` — sent when assets change, includes version and list of changed files
 
+## Unity Plugin
+
+The `unity/com.airon.drive` package syncs cached assets into `Assets/Resources/Drive/` for runtime access via `Resources.Load()`.
+
+### Install
+
+Add to your Unity project's `Packages/manifest.json`:
+
+```json
+{
+  "dependencies": {
+    "com.airon.drive": "file:../../drive-cache/unity/com.airon.drive"
+  }
+}
+```
+
+Or copy the `unity/com.airon.drive` folder into your project's `Packages/` directory.
+
+### Configure
+
+Open **Project Settings > Drive Sync** and enter:
+
+- **Server URL** — e.g. `https://your-server.com` or `http://localhost:3100`
+- **API Key** — one of the keys from your `API_KEYS` config
+
+### How It Works
+
+- **On editor load**: runs a full sync (downloads all assets from the server)
+- **On entering play mode**: checks the server's manifest version and only syncs if there are changes
+- **Manual**: click "Sync Now" in Project Settings > Drive Sync
+- Files are placed under `Assets/Resources/Drive/` and can be loaded at runtime with `Resources.Load("Drive/filename")`
+
 ## How Sync Works
 
-1. **On startup**: if no prior state, does a full sync of the watched folder
+1. **On startup**: full sync of the watched folder
 2. **Incremental sync**: uses Drive Changes API with a persisted page token — only fetches what changed since last check
-3. **Polling**: checks for changes every 30s (configurable) as a safety net
-4. **Webhook** (optional): receives push notifications from Google for near-instant sync
+3. **Webhook** (optional): receives push notifications from Google for near-instant sync
+4. **Drift check**: folder comparison triggered on manifest requests and non-file Drive changes, catches anything the Changes API misses (e.g. Shared Drive trash restores)
 5. **Recovery**: page token is persisted to disk, so restarts pick up exactly where they left off

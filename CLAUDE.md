@@ -33,11 +33,11 @@ The server runs on Express (port 3100) with Node.js 20. Key flows:
 
 **Sync pipeline**: Google Drive → fetch (Sheets→JSON or binary) → hash (MD5) → cache to disk → bump manifest version → broadcast SSE update
 
-**Dual sync strategy**: Webhooks for near-instant updates + polling (30s) as fallback. Page token persisted to disk so incremental sync survives restarts.
+**Triple sync strategy**: Webhooks for near-instant updates + drift check (folder comparison triggered on manifest requests and non-file Drive changes) to catch Changes API gaps. Page token persisted to disk so incremental sync survives restarts.
 
 ### Module Layout (`src/`)
 
-- **index.js** — Entry point. Orchestrates full/incremental sync, polling, webhook setup, and Express server startup. Contains `fullSync()`, `incrementalSync()`, and `syncFile()`.
+- **index.js** — Entry point. Orchestrates full/incremental sync, drift check, webhook setup, and Express server startup. Contains `fullSync()`, `incrementalSync()`, `driftCheck()`, and `syncFile()`.
 - **config.js** — Centralizes all environment variables.
 - **auth.js** — Per-key auth middleware (Bearer header or `?key=` query param). Looks up the key in `config.apiKeys`, sets `req.subfolder` to the scoped subfolder. Exempts `/webhook/drive`.
 - **google/client.js** — Initializes authenticated Drive v3 and Sheets v4 clients from service account credentials.
@@ -65,6 +65,15 @@ The server runs on Express (port 3100) with Node.js 20. Key flows:
 - Read-only bind mount `./credentials` for service account JSON
 - Connects to external `caddy_default` network for reverse proxy
 - Healthcheck via `/health` endpoint
+
+### Unity Plugin (`unity/com.airon.drive/`)
+
+A UPM package (Unity 2021.3+) that syncs cached assets from the server into `Assets/Resources/Drive/` for runtime access via `Resources.Load()`.
+
+- **DriveSyncRunner.cs** — `[InitializeOnLoad]` orchestrator. Runs full sync on editor startup and version-checked sync on entering play mode. Compares manifest hashes against an in-memory cache to skip unchanged files. Cleans up removed assets and their `.meta` files.
+- **DriveSyncClient.cs** — HTTP client using `UnityWebRequest`. Fetches version, manifest, and asset downloads. Includes a hand-written JSON parser for manifest (JsonUtility can't deserialize `Dictionary<string, T>`).
+- **DriveSyncSettings.cs** — Settings persisted to `ProjectSettings/Packages/com.airon.drive/Settings.json` (serverUrl, apiKey). Sync cache is in-memory only (rebuilds each editor session since the server's drift check guarantees freshness).
+- **DriveSyncSettingsProvider.cs** — Project Settings UI under "Project/Drive Sync". Editable server URL/API key, read-only cache stats, and a "Sync Now" button.
 
 ### Key Dependencies
 

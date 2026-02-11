@@ -2,7 +2,7 @@
   "name": "com.airon.drive",
   "version": "1.0.0",
   "displayName": "Drive Sync",
-  "description": "Syncs cached Google Drive files from a drive-cache server into Assets/Resources/drive for runtime access.",
+  "description": "Syncs cached Google Drive files from a drive-cache server into Assets/Resources/Drive for runtime access.",
   "unity": "2021.3",
   "author": {
     "name": "Airon"

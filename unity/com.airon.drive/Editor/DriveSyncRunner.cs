@@ -11,7 +11,7 @@ namespace Airon.Drive
     [InitializeOnLoad]
     public static class DriveSyncRunner
     {
-        private const string ResourceDir = "Assets/Resources/drive";
+        private const string ResourceDir = "Assets/Resources/Drive";
 
         public static bool IsSyncing { get; private set; }
 
