@@ -214,20 +214,80 @@ async function syncFile(fileId, fileName, mimeType, modifiedTime) {
   });
 }
 
+/**
+ * Drift check: list the Drive folder and compare against manifest.
+ * Catches changes the Changes API misses (e.g. Shared Drive trash restores).
+ * Only downloads files that are actually new or modified.
+ */
+async function driftCheck() {
+  const files = await fetcher.listFolderFiles(config.google.folderId);
+  const assets = manifest.get().assets;
+  const changedFiles = [];
+  let dirty = false;
+
+  const seenIds = new Set();
+
+  for (const file of files) {
+    seenIds.add(file.id);
+    const existing = assets[file.id];
+
+    // Skip if file hash matches (binary files have md5Checksum)
+    if (existing && file.md5Checksum && existing.hash === file.md5Checksum) continue;
+
+    // For Google Sheets (no md5Checksum), compare modifiedTime
+    if (existing && !file.md5Checksum && existing.modifiedTime === file.modifiedTime) continue;
+
+    // New or changed file — sync it
+    try {
+      const result = await syncFile(file.id, file.name, file.mimeType, file.modifiedTime);
+      if (result) {
+        changedFiles.push({ id: file.id, name: file.name, action: existing ? 'updated' : 'added' });
+        dirty = true;
+      }
+    } catch (err) {
+      console.error(`[drift] Failed to sync ${file.name}: ${err.message}`);
+    }
+  }
+
+  // Detect removed files
+  for (const [fileId, asset] of Object.entries(assets)) {
+    if (!seenIds.has(fileId)) {
+      store.deleteFile(asset.filename);
+      manifest.removeAsset(fileId);
+      changedFiles.push({ id: fileId, name: asset.filename, action: 'removed' });
+      dirty = true;
+    }
+  }
+
+  if (dirty) {
+    const version = manifest.commit();
+    broadcaster.notifyUpdate(version, changedFiles);
+    console.log(`[drift] Corrected ${changedFiles.length} files: ${changedFiles.map(f => `${f.action} ${f.name}`).join(', ')}`);
+  }
+}
+
 // --- Polling ---
 
 let pollTimer = null;
+let pollCount = 0;
+const DRIFT_CHECK_INTERVAL = 4; // Run drift check every Nth poll cycle
 
 function startPolling() {
   pollTimer = setInterval(async () => {
     try {
+      pollCount++;
       await incrementalSync();
+
+      // Periodic drift check as safety net for Changes API gaps
+      if (pollCount % DRIFT_CHECK_INTERVAL === 0) {
+        await driftCheck();
+      }
     } catch (err) {
       console.error('[poll] Sync error:', err.message);
     }
   }, config.pollInterval);
 
-  console.log(`[poll] Polling every ${config.pollInterval / 1000}s`);
+  console.log(`[poll] Polling every ${config.pollInterval / 1000}s (drift check every ${DRIFT_CHECK_INTERVAL * config.pollInterval / 1000}s)`);
 }
 
 // --- Webhook ---
