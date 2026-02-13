@@ -48,7 +48,9 @@ async function listFolderFiles(folderId, prefix = '') {
 }
 
 /**
- * Fetch sheet data as JSON (all sheets in the spreadsheet)
+ * Fetch sheet data as JSON (all sheets in the spreadsheet).
+ * Returns data in Google Sheets API values format:
+ *   { range: "Sheet!A1:Z100", majorDimension: "ROWS", values: [[...], ...] }
  */
 async function fetchSheetData(fileId) {
   // First get all sheet names
@@ -65,12 +67,15 @@ async function fetchSheetData(fileId) {
     ranges: sheetNames,
   });
 
-  // Convert to a clean object: { "SheetName": [ [row], [row], ... ] }
+  // Return raw API response per tab: { "SheetName": { range, majorDimension, values } }
   const data = {};
   for (const range of res.data.valueRanges) {
-    // Range is like "'Sheet1'!A1:Z100" or "Sheet1"
     const name = range.range.split('!')[0].replace(/'/g, '');
-    data[name] = range.values || [];
+    data[name] = {
+      range: range.range,
+      majorDimension: range.majorDimension || 'ROWS',
+      values: range.values || [],
+    };
   }
 
   return data;
@@ -95,9 +100,9 @@ async function fetchBinaryFile(fileId) {
 async function fetchFile(fileId, mimeType) {
   if (mimeType === GOOGLE_SHEET_MIME) {
     const tabData = await fetchSheetData(fileId);
-    const files = Object.entries(tabData).map(([tabName, rows]) => ({
+    const files = Object.entries(tabData).map(([tabName, table]) => ({
       name: tabName,
-      data: Buffer.from(JSON.stringify(rows, null, 2)),
+      data: Buffer.from(JSON.stringify(table, null, 2)),
     }));
     return { files, extension: '.json', isSheet: true };
   }

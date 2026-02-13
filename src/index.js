@@ -249,6 +249,18 @@ async function syncFile(fileId, fileName, mimeType, modifiedTime) {
     let dirty = false;
     const seenKeys = new Set();
 
+    // Detect old folder name (if sheet was renamed) from existing manifest entries
+    const assets = manifest.get().assets;
+    const prefix = fileId + ':';
+    const existingEntry = Object.entries(assets).find(([k]) => k.startsWith(prefix));
+    const oldFolderName = existingEntry ? existingEntry[1].filename.split('/')[0] : null;
+
+    // If the folder name changed, delete the old folder from disk
+    if (oldFolderName && oldFolderName !== folderName) {
+      store.deleteDir(oldFolderName);
+      console.log(`[sync] Sheet renamed: ${oldFolderName} -> ${folderName}`);
+    }
+
     for (const tab of result.files) {
       const cacheFilename = `${folderName}/${tab.name}${result.extension}`;
       const { hash, size } = store.saveFile(cacheFilename, tab.data);
@@ -266,8 +278,6 @@ async function syncFile(fileId, fileName, mimeType, modifiedTime) {
     }
 
     // Remove tabs that no longer exist in the sheet
-    const assets = manifest.get().assets;
-    const prefix = fileId + ':';
     for (const key of Object.keys(assets)) {
       if (key.startsWith(prefix) && !seenKeys.has(key)) {
         store.deleteFile(assets[key].filename);
@@ -279,8 +289,16 @@ async function syncFile(fileId, fileName, mimeType, modifiedTime) {
     return dirty;
   }
 
-  // Binary file — same as before
+  // Binary file
   const cacheFilename = `${baseName}${result.extension}`;
+
+  // Detect rename — delete old cached file if filename changed
+  const existingAsset = manifest.get().assets[fileId];
+  if (existingAsset && existingAsset.filename !== cacheFilename) {
+    store.deleteFile(existingAsset.filename);
+    console.log(`[sync] File renamed: ${existingAsset.filename} -> ${cacheFilename}`);
+  }
+
   const { hash, size } = store.saveFile(cacheFilename, result.data);
 
   return manifest.upsertAsset(fileId, {
@@ -310,15 +328,13 @@ async function driftCheck() {
     seenIds.add(file.id);
 
     // For binary files, look up directly by fileId
-    // For sheets, find any tab entry (they all share the same modifiedTime)
-    const existing = assets[file.id]
-      || Object.entries(assets).find(([k]) => k.startsWith(file.id + ':'))?.[1];
+    const existing = assets[file.id];
 
-    // Skip if file hash matches (binary files have md5Checksum)
+    // Skip binary files if hash matches (they have md5Checksum from Drive)
     if (existing && file.md5Checksum && existing.hash === file.md5Checksum) continue;
 
-    // For Google Sheets (no md5Checksum), compare modifiedTime
-    if (existing && !file.md5Checksum && existing.modifiedTime === file.modifiedTime) continue;
+    // Google Sheets have no md5Checksum and modifiedTime can lag behind edits,
+    // so always re-fetch sheet content and let per-tab hash comparison handle it.
 
     // New or changed file — sync it
     try {
