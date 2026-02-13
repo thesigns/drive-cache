@@ -98,6 +98,17 @@ async function fullSync() {
     }
   }
 
+  // Remove .gsheet folders whose sheets no longer exist
+  const knownDirs = new Set(
+    [...knownFiles].map(f => f.split('/')[0]).filter(d => d.endsWith('.gsheet'))
+  );
+  for (const dir of store.listDirs()) {
+    if (dir.endsWith('.gsheet') && !knownDirs.has(dir)) {
+      store.deleteDir(dir);
+      console.log(`[sync] Pruned stale sheet folder: ${dir}`);
+    }
+  }
+
   if (dirty) {
     const version = manifest.commit();
     broadcaster.notifyUpdate(version, []);
@@ -147,14 +158,27 @@ async function incrementalSync() {
 
   for (const change of fileChanges) {
     if (change.removed || (change.file && change.file.trashed)) {
-      const asset = manifest.get().assets[change.fileId];
+      // Try single-key removal (binary files)
+      const asset = manifest.removeAsset(change.fileId);
       if (asset) {
         store.deleteFile(asset.filename);
-        manifest.removeAsset(change.fileId);
         changedFiles.push({ id: change.fileId, name: asset.filename, action: 'removed' });
         dirty = true;
         console.log(`[sync] Removed: ${asset.filename}`);
-      } else {
+      }
+
+      // Try prefix removal (sheet tabs keyed as "fileId:tabName")
+      const tabAssets = manifest.removeAssetsByPrefix(change.fileId);
+      if (tabAssets.length > 0) {
+        // All tabs share the same .gsheet folder — derive from first entry
+        const folderName = tabAssets[0].filename.split('/')[0];
+        store.deleteDir(folderName);
+        changedFiles.push({ id: change.fileId, name: folderName, action: 'removed' });
+        dirty = true;
+        console.log(`[sync] Removed sheet folder: ${folderName} (${tabAssets.length} tabs)`);
+      }
+
+      if (!asset && tabAssets.length === 0) {
         console.log(`[sync] Change removed/trashed for unknown fileId=${change.fileId}, skipping`);
       }
       continue;
@@ -211,22 +235,57 @@ async function incrementalSync() {
 
 /**
  * Sync a single file: fetch from Drive, save to cache, update manifest.
- * Returns true if the file was actually updated.
+ * Returns true if any file was actually updated.
+ *
+ * For Google Sheets, creates a .gsheet/ folder with one .json per tab.
+ * Each tab is a separate manifest entry keyed as "fileId:tabName".
  */
 async function syncFile(fileId, fileName, mimeType, modifiedTime) {
-  const { data, extension } = await fetcher.fetchFile(fileId, mimeType);
-
-  // Sanitize filename: strip original extension for sheets, keep for others
+  const result = await fetcher.fetchFile(fileId, mimeType);
   const baseName = fileName.replace(/\.[^/.]+$/, '');
-  const cacheFilename = `${baseName}${extension}`;
 
-  const { hash, size } = store.saveFile(cacheFilename, data);
+  if (result.isSheet) {
+    const folderName = `${baseName}.gsheet`;
+    let dirty = false;
+    const seenKeys = new Set();
 
-  const type = mimeType === fetcher.GOOGLE_SHEET_MIME ? 'sheet' : 'binary';
+    for (const tab of result.files) {
+      const cacheFilename = `${folderName}/${tab.name}${result.extension}`;
+      const { hash, size } = store.saveFile(cacheFilename, tab.data);
+      const key = `${fileId}:${tab.name}`;
+      seenKeys.add(key);
+
+      const changed = manifest.upsertAsset(key, {
+        filename: cacheFilename,
+        type: 'sheet',
+        hash,
+        size,
+        modifiedTime,
+      });
+      if (changed) dirty = true;
+    }
+
+    // Remove tabs that no longer exist in the sheet
+    const assets = manifest.get().assets;
+    const prefix = fileId + ':';
+    for (const key of Object.keys(assets)) {
+      if (key.startsWith(prefix) && !seenKeys.has(key)) {
+        store.deleteFile(assets[key].filename);
+        manifest.removeAsset(key);
+        dirty = true;
+      }
+    }
+
+    return dirty;
+  }
+
+  // Binary file — same as before
+  const cacheFilename = `${baseName}${result.extension}`;
+  const { hash, size } = store.saveFile(cacheFilename, result.data);
 
   return manifest.upsertAsset(fileId, {
     filename: cacheFilename,
-    type,
+    type: 'binary',
     hash,
     size,
     modifiedTime,
@@ -249,7 +308,11 @@ async function driftCheck() {
 
   for (const file of files) {
     seenIds.add(file.id);
-    const existing = assets[file.id];
+
+    // For binary files, look up directly by fileId
+    // For sheets, find any tab entry (they all share the same modifiedTime)
+    const existing = assets[file.id]
+      || Object.entries(assets).find(([k]) => k.startsWith(file.id + ':'))?.[1];
 
     // Skip if file hash matches (binary files have md5Checksum)
     if (existing && file.md5Checksum && existing.hash === file.md5Checksum) continue;
@@ -269,12 +332,31 @@ async function driftCheck() {
     }
   }
 
-  // Detect removed files
-  for (const [fileId, asset] of Object.entries(assets)) {
-    if (!seenIds.has(fileId)) {
+  // Detect removed files — collect unique fileIds from manifest keys
+  const removedIds = new Set();
+  for (const key of Object.keys(assets)) {
+    // Keys are either "fileId" (binary) or "fileId:tabName" (sheet tab)
+    const baseId = key.split(':')[0];
+    if (!seenIds.has(baseId)) {
+      removedIds.add(baseId);
+    }
+  }
+
+  for (const fileId of removedIds) {
+    // Try single-key removal (binary)
+    const asset = manifest.removeAsset(fileId);
+    if (asset) {
       store.deleteFile(asset.filename);
-      manifest.removeAsset(fileId);
       changedFiles.push({ id: fileId, name: asset.filename, action: 'removed' });
+      dirty = true;
+    }
+
+    // Try prefix removal (sheet tabs)
+    const tabAssets = manifest.removeAssetsByPrefix(fileId);
+    if (tabAssets.length > 0) {
+      const folderName = tabAssets[0].filename.split('/')[0];
+      store.deleteDir(folderName);
+      changedFiles.push({ id: fileId, name: folderName, action: 'removed' });
       dirty = true;
     }
   }

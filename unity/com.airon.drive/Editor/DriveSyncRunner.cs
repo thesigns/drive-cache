@@ -1,7 +1,8 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
-
+using System.Linq;
+using System.Security.Cryptography;
 using System.Threading.Tasks;
 using UnityEditor;
 using UnityEngine;
@@ -57,6 +58,14 @@ namespace Airon.Drive
             }
         }
 
+        private static string ComputeMD5(string filePath)
+        {
+            using var md5 = MD5.Create();
+            using var stream = File.OpenRead(filePath);
+            var hashBytes = md5.ComputeHash(stream);
+            return BitConverter.ToString(hashBytes).Replace("-", "").ToLowerInvariant();
+        }
+
         private static async Task RunSyncInternal(DriveSyncSettings settings, bool force)
         {
             var cache = DriveSyncSettings.LoadCache();
@@ -78,11 +87,6 @@ namespace Airon.Drive
             var manifest = await DriveSyncClient.FetchManifest(serverUrl, apiKey);
             Debug.Log($"[DriveSync] Manifest version {manifest.version} — {manifest.assets.Count} asset(s).");
 
-            // Build lookup from cache
-            var cachedByFileId = new Dictionary<string, DriveSyncSettings.CachedAsset>();
-            foreach (var ca in cache.assets)
-                cachedByFileId[ca.fileId] = ca;
-
             var downloaded = 0;
             var skipped = 0;
             var deleted = 0;
@@ -91,12 +95,14 @@ namespace Airon.Drive
             // Ensure output directory exists
             Directory.CreateDirectory(ResourceDir);
 
-            // Download new/changed assets
+            // Download new/changed assets (compare MD5 of local file against manifest hash)
+            var manifestFilenames = new HashSet<string>();
             foreach (var kvp in manifest.assets)
             {
                 var fileId = kvp.Key;
                 var asset = kvp.Value;
                 var diskPath = Path.Combine(ResourceDir, asset.filename);
+                manifestFilenames.Add(asset.filename);
 
                 newCacheAssets.Add(new DriveSyncSettings.CachedAsset
                 {
@@ -105,10 +111,8 @@ namespace Airon.Drive
                     filename = asset.filename
                 });
 
-                // Skip if hash matches and file exists on disk
-                if (cachedByFileId.TryGetValue(fileId, out var cached)
-                    && cached.hash == asset.hash
-                    && File.Exists(diskPath))
+                // Skip if file exists on disk with matching hash
+                if (File.Exists(diskPath) && ComputeMD5(diskPath) == asset.hash)
                 {
                     skipped++;
                     continue;
@@ -122,22 +126,35 @@ namespace Airon.Drive
                 downloaded++;
             }
 
-            // Delete files that were in old cache but not in new manifest
-            var manifestFileIds = new HashSet<string>(manifest.assets.Keys);
-            foreach (var ca in cache.assets)
+            // Delete local files not present in manifest
+            foreach (var filePath in Directory.GetFiles(ResourceDir, "*", SearchOption.AllDirectories))
             {
-                if (manifestFileIds.Contains(ca.fileId))
+                if (filePath.EndsWith(".meta"))
+                    continue;
+                var relativePath = Path.GetRelativePath(ResourceDir, filePath).Replace('\\', '/');
+                if (manifestFilenames.Contains(relativePath))
                     continue;
 
-                var diskPath = Path.Combine(ResourceDir, ca.filename);
-                if (File.Exists(diskPath))
+                File.Delete(filePath);
+                var metaPath = filePath + ".meta";
+                if (File.Exists(metaPath))
+                    File.Delete(metaPath);
+                deleted++;
+            }
+
+            // Remove .gsheet directories that no longer have any files in the manifest
+            var manifestDirs = new HashSet<string>(
+                manifestFilenames.Select(f => f.Split('/')[0]).Where(d => d.EndsWith(".gsheet"))
+            );
+            foreach (var dir in Directory.GetDirectories(ResourceDir, "*.gsheet", SearchOption.AllDirectories))
+            {
+                var dirName = Path.GetFileName(dir);
+                if (!manifestDirs.Contains(dirName))
                 {
-                    File.Delete(diskPath);
-                    // Also remove .meta file
-                    var metaPath = diskPath + ".meta";
-                    if (File.Exists(metaPath))
-                        File.Delete(metaPath);
-                    deleted++;
+                    Directory.Delete(dir, true);
+                    var dirMeta = dir + ".meta";
+                    if (File.Exists(dirMeta))
+                        File.Delete(dirMeta);
                 }
             }
 

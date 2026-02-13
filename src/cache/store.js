@@ -58,4 +58,24 @@ function listFiles(dir = config.cache.dir, prefix = '') {
   return results;
 }
 
-module.exports = { saveFile, readFile, deleteFile, ensureDir, listFiles };
+/**
+ * Delete a directory and all its contents from cache.
+ */
+function deleteDir(dirname) {
+  const dirPath = path.join(config.cache.dir, dirname);
+  if (fs.existsSync(dirPath)) {
+    fs.rmSync(dirPath, { recursive: true });
+  }
+}
+
+/**
+ * List top-level directories in the cache directory.
+ */
+function listDirs() {
+  if (!fs.existsSync(config.cache.dir)) return [];
+  return fs.readdirSync(config.cache.dir, { withFileTypes: true })
+    .filter(e => e.isDirectory())
+    .map(e => e.name);
+}
+
+module.exports = { saveFile, readFile, deleteFile, deleteDir, ensureDir, listFiles, listDirs };

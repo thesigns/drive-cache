@@ -27,14 +27,32 @@ function upsertAsset(fileId, { filename, type, hash, size, modifiedTime }) {
 }
 
 /**
- * Remove an asset entry
+ * Remove an asset entry. Returns the removed entry (or null).
  */
-function removeAsset(fileId) {
-  if (manifest.assets[fileId]) {
-    delete manifest.assets[fileId];
-    return true;
+function removeAsset(key) {
+  const entry = manifest.assets[key];
+  if (entry) {
+    delete manifest.assets[key];
+    return entry;
   }
-  return false;
+  return null;
+}
+
+/**
+ * Remove all asset entries whose key starts with fileId + ':'.
+ * Used when a Google Sheet is deleted (each tab is keyed as "fileId:tabName").
+ * Returns array of removed entries.
+ */
+function removeAssetsByPrefix(fileIdPrefix) {
+  const prefix = fileIdPrefix + ':';
+  const removed = [];
+  for (const key of Object.keys(manifest.assets)) {
+    if (key.startsWith(prefix)) {
+      removed.push(manifest.assets[key]);
+      delete manifest.assets[key];
+    }
+  }
+  return removed;
 }
 
 /**
@@ -61,4 +79,4 @@ function getVersion() {
   return manifest.version;
 }
 
-module.exports = { upsertAsset, removeAsset, commit, get, getVersion };
+module.exports = { upsertAsset, removeAsset, removeAssetsByPrefix, commit, get, getVersion };

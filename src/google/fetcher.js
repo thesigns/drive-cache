@@ -88,21 +88,23 @@ async function fetchBinaryFile(fileId) {
 }
 
 /**
- * Fetch a file - routes to the right method based on MIME type
- * Returns { data: Buffer|object, extension: string }
+ * Fetch a file - routes to the right method based on MIME type.
+ * For sheets: returns { files: [{ name, data }], extension: '.json', isSheet: true }
+ * For others: returns { data: Buffer, extension: string, isSheet: false }
  */
 async function fetchFile(fileId, mimeType) {
   if (mimeType === GOOGLE_SHEET_MIME) {
-    const data = await fetchSheetData(fileId);
-    return {
-      data: Buffer.from(JSON.stringify(data, null, 2)),
-      extension: '.json',
-    };
+    const tabData = await fetchSheetData(fileId);
+    const files = Object.entries(tabData).map(([tabName, rows]) => ({
+      name: tabName,
+      data: Buffer.from(JSON.stringify(rows, null, 2)),
+    }));
+    return { files, extension: '.json', isSheet: true };
   }
 
   const data = await fetchBinaryFile(fileId);
   const ext = mimeExtension(mimeType);
-  return { data, extension: ext };
+  return { data, extension: ext, isSheet: false };
 }
 
 function mimeExtension(mimeType) {
