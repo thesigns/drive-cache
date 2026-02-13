@@ -69,13 +69,19 @@ function deleteDir(dirname) {
 }
 
 /**
- * List top-level directories in the cache directory.
+ * List all directories in the cache directory (recursive, relative paths).
  */
-function listDirs() {
-  if (!fs.existsSync(config.cache.dir)) return [];
-  return fs.readdirSync(config.cache.dir, { withFileTypes: true })
-    .filter(e => e.isDirectory())
-    .map(e => e.name);
+function listDirs(dir = config.cache.dir, prefix = '') {
+  const results = [];
+  if (!fs.existsSync(dir)) return results;
+  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+    if (entry.isDirectory()) {
+      const rel = prefix ? prefix + '/' + entry.name : entry.name;
+      results.push(rel);
+      results.push(...listDirs(path.join(dir, entry.name), rel));
+    }
+  }
+  return results;
 }
 
 module.exports = { saveFile, readFile, deleteFile, deleteDir, ensureDir, listFiles, listDirs };

@@ -99,11 +99,17 @@ async function fullSync() {
   }
 
   // Remove .gsheet folders whose sheets no longer exist
-  const knownDirs = new Set(
-    [...knownFiles].map(f => f.split('/')[0]).filter(d => d.endsWith('.gsheet'))
-  );
+  const knownGsheetDirs = new Set();
+  for (const f of knownFiles) {
+    const parts = f.split('/');
+    for (let i = 0; i < parts.length; i++) {
+      if (parts[i].endsWith('.gsheet')) {
+        knownGsheetDirs.add(parts.slice(0, i + 1).join('/'));
+      }
+    }
+  }
   for (const dir of store.listDirs()) {
-    if (dir.endsWith('.gsheet') && !knownDirs.has(dir)) {
+    if (dir.endsWith('.gsheet') && !knownGsheetDirs.has(dir)) {
       store.deleteDir(dir);
       console.log(`[sync] Pruned stale sheet folder: ${dir}`);
     }
@@ -170,8 +176,8 @@ async function incrementalSync() {
       // Try prefix removal (sheet tabs keyed as "fileId:tabName")
       const tabAssets = manifest.removeAssetsByPrefix(change.fileId);
       if (tabAssets.length > 0) {
-        // All tabs share the same .gsheet folder — derive from first entry
-        const folderName = tabAssets[0].filename.split('/')[0];
+        // All tabs share the same .gsheet folder — strip last segment (tab filename)
+        const folderName = tabAssets[0].filename.split('/').slice(0, -1).join('/');
         store.deleteDir(folderName);
         changedFiles.push({ id: change.fileId, name: folderName, action: 'removed' });
         dirty = true;
@@ -249,16 +255,19 @@ async function syncFile(fileId, fileName, mimeType, modifiedTime) {
     let dirty = false;
     const seenKeys = new Set();
 
-    // Detect old folder name (if sheet was renamed) from existing manifest entries
+    // Detect old folder path (if sheet was renamed) from existing manifest entries
     const assets = manifest.get().assets;
     const prefix = fileId + ':';
     const existingEntry = Object.entries(assets).find(([k]) => k.startsWith(prefix));
-    const oldFolderName = existingEntry ? existingEntry[1].filename.split('/')[0] : null;
+    // filename is like "path/to/OldName.gsheet/Tab1.json" — strip the last segment
+    const oldFolderPath = existingEntry
+      ? existingEntry[1].filename.split('/').slice(0, -1).join('/')
+      : null;
 
-    // If the folder name changed, delete the old folder from disk
-    if (oldFolderName && oldFolderName !== folderName) {
-      store.deleteDir(oldFolderName);
-      console.log(`[sync] Sheet renamed: ${oldFolderName} -> ${folderName}`);
+    // If the folder path changed, delete the old folder from disk
+    if (oldFolderPath && oldFolderPath !== folderName) {
+      store.deleteDir(oldFolderPath);
+      console.log(`[sync] Sheet renamed: ${oldFolderPath} -> ${folderName}`);
     }
 
     for (const tab of result.files) {
@@ -370,7 +379,7 @@ async function driftCheck() {
     // Try prefix removal (sheet tabs)
     const tabAssets = manifest.removeAssetsByPrefix(fileId);
     if (tabAssets.length > 0) {
-      const folderName = tabAssets[0].filename.split('/')[0];
+      const folderName = tabAssets[0].filename.split('/').slice(0, -1).join('/');
       store.deleteDir(folderName);
       changedFiles.push({ id: fileId, name: folderName, action: 'removed' });
       dirty = true;
