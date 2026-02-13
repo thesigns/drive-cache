@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Linq;
 using System.Security.Cryptography;
 using System.Threading.Tasks;
 using UnityEditor;
@@ -140,22 +139,6 @@ namespace Airon.Drive
                 if (File.Exists(metaPath))
                     File.Delete(metaPath);
                 deleted++;
-            }
-
-            // Remove .gsheet directories that no longer have any files in the manifest
-            var manifestDirs = new HashSet<string>(
-                manifestFilenames.Select(f => f.Split('/')[0]).Where(d => d.EndsWith(".gsheet"))
-            );
-            foreach (var dir in Directory.GetDirectories(ResourceDir, "*.gsheet", SearchOption.AllDirectories))
-            {
-                var dirName = Path.GetFileName(dir);
-                if (!manifestDirs.Contains(dirName))
-                {
-                    Directory.Delete(dir, true);
-                    var dirMeta = dir + ".meta";
-                    if (File.Exists(dirMeta))
-                        File.Delete(dirMeta);
-                }
             }
 
             // Save updated cache
