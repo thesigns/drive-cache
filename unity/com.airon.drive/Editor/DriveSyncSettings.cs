@@ -13,6 +13,7 @@ namespace Airon.Drive
 
         public string serverUrl = "";
         public string apiKey = "";
+        public string resourceDir = "Assets/Resources/Drive";
 
         private static DriveSyncSettings s_Instance;
 

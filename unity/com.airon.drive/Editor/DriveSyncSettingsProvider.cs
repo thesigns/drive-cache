@@ -23,6 +23,7 @@ namespace Airon.Drive
 
             _settings.serverUrl = EditorGUILayout.TextField("Server URL", _settings.serverUrl);
             _settings.apiKey = EditorGUILayout.PasswordField("API Key", _settings.apiKey);
+            _settings.resourceDir = EditorGUILayout.TextField("Resource Directory", _settings.resourceDir);
 
             if (EditorGUI.EndChangeCheck())
                 DriveSyncSettings.Save();
