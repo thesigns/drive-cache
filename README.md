@@ -76,7 +76,7 @@ Connect to `/sse/events?key=YOUR_KEY` to receive:
 
 ## Unity Plugin
 
-The `unity/com.airon.drive` package syncs cached assets into `Assets/Resources/Drive/` for runtime access via `Resources.Load()`.
+The `unity/com.airon.drive` package syncs cached assets into a configurable local directory (default `Assets/Resources/Drive/`) for runtime access via `Resources.Load()`.
 
 ### Install
 
@@ -98,13 +98,14 @@ Open **Project Settings > Drive Sync** and enter:
 
 - **Server URL** — e.g. `https://your-server.com` or `http://localhost:3100`
 - **API Key** — one of the keys from your `API_KEYS` config
+- **Resource Directory** — local path where synced files are saved (default: `Assets/Resources/Drive`)
 
 ### How It Works
 
 - **On editor load**: runs a full sync (downloads all assets from the server)
 - **On entering play mode**: checks the server's manifest version and only syncs if there are changes
 - **Manual**: click "Sync Now" in Project Settings > Drive Sync
-- Files are placed under `Assets/Resources/Drive/` and can be loaded at runtime with `Resources.Load("Drive/filename")`
+- Files are placed under the configured Resource Directory (default `Assets/Resources/Drive/`) and can be loaded at runtime with `Resources.Load("Drive/filename")`
 
 ## How Sync Works
 
