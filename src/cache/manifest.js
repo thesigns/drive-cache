@@ -10,7 +10,7 @@ let manifest = {
 function upsertAsset(fileId, { filename, type, hash, size, modifiedTime }) {
   const existing = manifest.assets[fileId];
 
-  if (existing && existing.hash === hash) {
+  if (existing && existing.hash === hash && existing.filename === filename) {
     return false; // No change
   }
 
